@@ -17,7 +17,7 @@ const Home = ({ searchQuery = "", activeCategory = { type: 'All', value: 'La Col
     console.log("🚀 GOATSTORE : Tapez uploadGoat() dans la console pour remplir le catalogue.");
   }, []);
 
-  // 2. RÉCUPÉRATION DES PRODUITS
+  // 2. RÉCUPÉRATION DES PRODUITS (MODIFIÉ POUR CORRESPONDRE À L'ADMIN)
   useEffect(() => {
     const fetchProducts = async () => {
       if (!activeCategory || !activeCategory.type) return;
@@ -27,7 +27,10 @@ const Home = ({ searchQuery = "", activeCategory = { type: 'All', value: 'La Col
         let q = collection(db, "products");
         
         if (activeCategory.type !== 'All') {
-          q = query(q, where("subCategory", "==", activeCategory.value));
+          // MODIF : On cherche dans 'category' (utilisé par l'admin) 
+          // OU 'subCategory' (pour tes anciens produits)
+          // La solution la plus propre ici est de viser le champ 'category' que tu gères maintenant
+          q = query(q, where("category", "==", activeCategory.value));
         }
         
         const querySnapshot = await getDocs(q);
