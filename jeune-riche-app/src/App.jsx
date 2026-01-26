@@ -11,10 +11,11 @@ import Commander from './pages/Commander';
 import Sidebar from './components/Sidebar'; 
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
+import OrderTracking from './components/OrderTracking'; // Import du suivi de commande
 import { CartProvider } from './context/CartContext';
-import { WishlistProvider } from './context/WishlistContext'; // Ajouté pour les favoris
+import { WishlistProvider } from './context/WishlistContext'; 
 
-// Nouvelles Pages
+// Pages
 import Admin from './pages/Admin';
 import Auth from './pages/Auth'; 
 import ContactPage from './pages/ContactPage'; 
@@ -52,10 +53,11 @@ function App() {
   }, [isCartOpen, isSidebarOpen]);
 
   return (
-    <WishlistProvider> {/* Ajouté pour que la page Favoris fonctionne */}
+    <WishlistProvider>
       <CartProvider>
         <div className="font-sans antialiased text-slate-900 flex flex-col min-h-screen bg-white">
           
+          {/* Bouton de Synchronisation (Utile en dev) */}
           <button 
             onClick={() => {
               if(window.confirm("Voulez-vous écraser l'ancien catalogue par le nouveau catalogue PREMIUM ?")) {
@@ -92,7 +94,7 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin-gs" element={<Admin />} />
               <Route path="/favoris" element={<Favorites />} />
-              {/* Suppression de la route /order qui faisait planter le site */}
+              <Route path="/track/:orderId" element={<OrderTracking />} />
             </Routes>
           </main>
 

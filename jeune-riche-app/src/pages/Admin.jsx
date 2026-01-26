@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { db, auth } from '../firebase';
 import { collection, getDocs, orderBy, query, doc, updateDoc, addDoc, deleteDoc } from "firebase/firestore";
-import { Package, ShoppingCart, Plus, Trash2, CheckCircle, ExternalLink, RefreshCw, X, Image as ImageIcon, Search, Edit2 } from 'lucide-react';
+// Ajout des icônes pour le tracking : Package, Truck, Check
+import { Package, ShoppingCart, Plus, Trash2, CheckCircle, ExternalLink, RefreshCw, X, Image as ImageIcon, Search, Edit2, Truck, Check } from 'lucide-react';
 
 const Admin = () => {
   const [orders, setOrders] = useState([]);
@@ -22,7 +23,7 @@ const Admin = () => {
     image: '',
     description: '',
     type: 'physique',
-    stock: 10 // MODIF : Ajout du stock par défaut
+    stock: 10 
   });
 
   const adminEmail = "yohannesende@gmail.com"; 
@@ -57,13 +58,14 @@ const Admin = () => {
     }
   };
 
-  const markAsDelivered = async (orderId) => {
+  // NOUVELLE FONCTION : Mise à jour du statut pour le tracking client
+  const updateOrderStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "orders", orderId);
-      await updateDoc(orderRef, { status: "Livré" });
-      fetchData();
+      await updateDoc(orderRef, { status: newStatus });
+      fetchData(); // Rafraîchit la liste
     } catch (error) {
-      alert("Erreur lors de la mise à jour");
+      alert("Erreur lors de la mise à jour du statut");
     }
   };
 
@@ -76,7 +78,7 @@ const Admin = () => {
       image: product.image,
       description: product.description || '',
       type: product.type || 'physique',
-      stock: product.stock || 0 // MODIF : Récupération du stock existant
+      stock: product.stock || 0 
     });
     setPreviewUrl(product.image);
     setShowAddForm(true);
@@ -109,14 +111,14 @@ const Admin = () => {
           ...newProduct,
           image: finalImageUrl,
           price: Number(newProduct.price),
-          stock: Number(newProduct.stock) // MODIF : Sauvegarde du stock
+          stock: Number(newProduct.stock) 
         });
       } else {
         await addDoc(collection(db, "products"), {
           ...newProduct,
           image: finalImageUrl,
           price: Number(newProduct.price),
-          stock: Number(newProduct.stock), // MODIF : Sauvegarde du stock
+          stock: Number(newProduct.stock), 
           createdAt: new Date()
         });
       }
@@ -153,8 +155,9 @@ const Admin = () => {
     );
   }
 
+  // Calcul du revenu basé sur le statut "delivered" ou "Livré"
   const totalRevenue = orders
-    .filter(o => o.status === 'Livré')
+    .filter(o => o.status === 'delivered' || o.status === 'Livré')
     .reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
 
   return (
@@ -210,8 +213,6 @@ const Admin = () => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <input required value={newProduct.price} type="number" placeholder="Prix FCFA" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all" onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                    
-                    {/* MODIF : Ajout du champ Stock ici */}
                     <input required value={newProduct.stock} type="number" placeholder="Stock" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all" onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
                   </div>
 
@@ -275,7 +276,6 @@ const Admin = () => {
               <div key={product.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                 <img src={product.image} alt="" className="w-full h-48 object-cover rounded-2xl mb-4 group-hover:scale-110 transition-transform duration-500" />
                 
-                {/* MODIF : Affichage rapide du stock sur la carte Admin */}
                 <div className={`absolute top-16 right-6 px-2 py-1 rounded text-[8px] font-black uppercase ${product.stock <= 5 ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
                   Stock: {product.stock || 0}
                 </div>
@@ -309,19 +309,65 @@ const Admin = () => {
             <div key={order.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8 group">
               <div className="flex-grow">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${order.status === 'Livré' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white animate-pulse'}`}>
-                    {order.status || 'En attente'}
+                  {/* Affichage dynamique du statut stylisé */}
+                  <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest 
+                    ${order.status === 'delivered' || order.status === 'Livré' ? 'bg-green-500 text-white' : 
+                      order.status === 'shipped' ? 'bg-blue-500 text-white' : 
+                      order.status === 'processing' ? 'bg-purple-500 text-white' : 'bg-orange-500 text-white animate-pulse'}`}>
+                    {order.status === 'pending' ? 'En attente' : 
+                     order.status === 'processing' ? 'Préparation' : 
+                     order.status === 'shipped' ? 'En route' : 
+                     order.status === 'delivered' ? 'Livré' : (order.status || 'Reçue')}
                   </span>
                   <span className="text-slate-300 font-bold text-[10px]">ID: {order.id.slice(0, 8)}</span>
                 </div>
                 <h3 className="text-xl font-black uppercase italic tracking-tight">{order.customerName}</h3>
                 <a href={`https://wa.me/${order.whatsapp?.replace(/\s/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 font-bold underline text-sm">{order.whatsapp}</a>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Commune: {order.address}</p>
               </div>
-              <div className="text-right">
+
+              {/* SECTION ACTIONS TRACKING */}
+              <div className="flex flex-col items-end gap-3">
                 <p className="font-black text-2xl tracking-tighter">{order.total?.toLocaleString()} FCFA</p>
-                {order.status !== 'Livré' && (
-                  <button onClick={() => markAsDelivered(order.id)} className="bg-black text-white text-[10px] px-8 py-4 rounded-2xl font-black uppercase mt-4">Valider Livraison</button>
-                )}
+                
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {/* Bouton Étape 2 : Préparation */}
+                  {(!order.status || order.status === 'pending') && (
+                    <button 
+                      onClick={() => updateOrderStatus(order.id, 'processing')} 
+                      className="bg-purple-50 text-purple-600 border border-purple-100 text-[9px] px-4 py-2 rounded-xl font-black uppercase hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2"
+                    >
+                      <Package size={12} /> Préparer
+                    </button>
+                  )}
+
+                  {/* Bouton Étape 3 : Expédition */}
+                  {(order.status === 'processing' || !order.status) && (
+                    <button 
+                      onClick={() => updateOrderStatus(order.id, 'shipped')} 
+                      className="bg-blue-50 text-blue-600 border border-blue-100 text-[9px] px-4 py-2 rounded-xl font-black uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
+                    >
+                      <Truck size={12} /> Expédier
+                    </button>
+                  )}
+
+                  {/* Bouton Étape Finale : Livraison Terminer */}
+                  {(order.status !== 'delivered' && order.status !== 'Livré') && (
+                    <button 
+                      onClick={() => updateOrderStatus(order.id, 'delivered')} 
+                      className="bg-black text-white text-[9px] px-6 py-3 rounded-xl font-black uppercase hover:bg-green-600 transition-all shadow-lg flex items-center gap-2"
+                    >
+                      <Check size={12} /> Marquer Livré
+                    </button>
+                  )}
+                  
+                  {/* Indicateur de succès */}
+                  {(order.status === 'delivered' || order.status === 'Livré') && (
+                    <div className="flex items-center gap-2 text-green-600 font-black text-[10px] uppercase italic">
+                      <CheckCircle size={16} /> Commande Terminée
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

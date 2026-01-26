@@ -2,7 +2,6 @@ import { X, Truck, MessageCircle, Trash2, ShoppingBag, RefreshCw } from 'lucide-
 import { useCart } from '../context/CartContext';
 import { useState } from 'react';
 import { auth } from '../firebase';
-// VERIFIE BIEN CE CHEMIN : Si le dossier est 'utils', laisse comme ça.
 import { createOrder } from '../utils/orderService'; 
 
 const COMMunes = [
@@ -43,8 +42,14 @@ const CartDrawer = ({ isOpen, onClose }) => {
       );
 
       if (orderId) {
-        // 2. Envoi WhatsApp avec l'ID réel généré par Firebase
-        const phoneNumber = "2250102030405"; // TON NUMÉRO
+        // --- CONFIGURATION DU LIEN DE SUIVI ---
+        // window.location.origin récupère l'adresse de ton site (localhost ou ton futur lien Vercel)
+        const trackingUrl = `${window.location.origin}/track/${orderId}`;
+
+        // --- TON NUMÉRO (Format strict sans + ni espaces pour éviter les erreurs WhatsApp) ---
+        const phoneNumber = "2250767793120"; 
+        
+        // Construction du message avec l'ajout du LIEN DE SUIVI
         const message = `*NOUVELLE COMMANDE G.S #${orderId.slice(0, 5)}* 🐐\n\n` + 
           cart.map(item => `▪️ ${item.name} (x${item.quantity}) - ${item.price.toLocaleString()} FCFA`).join('\n') +
           `\n\n--------------------------` +
@@ -52,15 +57,26 @@ const CartDrawer = ({ isOpen, onClose }) => {
           `\n*Livraison (${selectedCommune}) :* ${deliveryFee.toLocaleString()} FCFA` +
           `\n*TOTAL À PAYER : ${finalTotal.toLocaleString()} FCFA*` +
           `\n--------------------------` +
-          `\n_Client connecté : ${auth.currentUser?.email || 'Invité'}_` +
+          `\n\n📍 *SUIVRE MON COLIS :*` +
+          `\n${trackingUrl}` + 
+          `\n\n_Client : ${auth.currentUser?.email || 'Invité'}_` +
           `\n_Livrable à Abidjan sous 24h._`;
         
-        window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+        // Encodage sécurisé du message
+        const encodedMessage = encodeURIComponent(message);
+        
+        // Utilisation de wa.me (plus moderne et stable)
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+        
+        // 2. Ouverture de WhatsApp
+        window.open(whatsappUrl, '_blank');
+        
+        // Fermer le panier après succès
         onClose();
       }
     } catch (error) {
       console.error("Erreur commande:", error);
-      alert("Erreur de connexion avec le serveur.");
+      alert("Erreur lors de la validation. Vérifie ta connexion.");
     } finally {
       setLoading(false);
     }
