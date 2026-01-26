@@ -20,6 +20,20 @@ export const CartProvider = ({ children }) => {
     alert(`${product.name} ajouté au panier !`);
   };
 
+  // --- MODIFICATIONS AJOUTÉES ---
+
+  // Supprimer un article du panier (pour le bouton poubelle)
+  const removeFromCart = (productId) => {
+    setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
+  };
+
+  // Vider complètement le panier (utile après une commande réussie)
+  const clearCart = () => {
+    setCart([]);
+  };
+
+  // ------------------------------
+
   // Calcul du montant total
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
 
@@ -27,7 +41,14 @@ export const CartProvider = ({ children }) => {
   const cartCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, cartTotal, cartCount }}>
+    <CartContext.Provider value={{ 
+      cart, 
+      addToCart, 
+      removeFromCart, // Ajouté
+      clearCart,      // Ajouté
+      cartTotal, 
+      cartCount 
+    }}>
       {children}
     </CartContext.Provider>
   );
