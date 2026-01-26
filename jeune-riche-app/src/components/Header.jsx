@@ -5,14 +5,14 @@ import { Link } from 'react-router-dom';
 
 const Header = ({ onOpenCart, onSearch, onOpenSidebar, onLogoClick, user }) => { 
   const { cartCount } = useCart();
-  // État pour savoir si on affiche la barre de recherche
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
+    /* MODIFICATION : Changement de sticky à fixed + ajout de w-full et top-0 */
+    <header className="fixed top-0 left-0 right-0 z-[100] bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between relative">
         
-        {/* BOUTON CATALOGUE - Masqué si recherche ouverte sur mobile */}
+        {/* BOUTON CATALOGUE */}
         {!isSearchOpen && (
           <button 
             onClick={onOpenSidebar} 
@@ -23,7 +23,7 @@ const Header = ({ onOpenCart, onSearch, onOpenSidebar, onLogoClick, user }) => {
           </button>
         )}
 
-        {/* Logo Central - Ajusté pour ne pas chevaucher */}
+        {/* Logo Central */}
         <Link 
           to="/" 
           onClick={() => {
@@ -39,7 +39,7 @@ const Header = ({ onOpenCart, onSearch, onOpenSidebar, onLogoClick, user }) => {
         
         <div className={`flex items-center space-x-1 md:space-x-5 ${isSearchOpen ? 'w-full md:w-auto justify-end' : ''}`}>
           
-          {/* BARRE DE RECHERCHE DYNAMIQUE */}
+          {/* BARRE DE RECHERCHE */}
           {isSearchOpen ? (
             <div className="flex items-center bg-slate-100 px-3 md:px-4 py-2 rounded-xl md:rounded-2xl w-full md:w-64 animate-in slide-in-from-right-5 duration-300">
               <Search className="w-4 h-4 text-slate-400 shrink-0" />

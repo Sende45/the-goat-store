@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom'; // Ajout de Navigate pour la sécurité
+import { Routes, Route, Navigate } from 'react-router-dom'; 
 import { auth } from './firebase'; 
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -11,7 +11,7 @@ import Commander from './pages/Commander';
 import Sidebar from './components/Sidebar'; 
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
-import OrderTracking from './components/OrderTracking'; // Import du suivi de commande
+import OrderTracking from './components/OrderTracking'; 
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext'; 
 
@@ -28,7 +28,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(""); 
   const [user, setUser] = useState(null); 
-  const [loading, setLoading] = useState(true); // Ajout d'un état de chargement auth
+  const [loading, setLoading] = useState(true); // État crucial pour attendre Firebase
   
   const initialCategory = { type: 'All', value: 'La Collection' };
   const [activeCategory, setActiveCategory] = useState(initialCategory);
@@ -36,7 +36,7 @@ function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false);
+      setLoading(false); // On ne libère la vue que quand l'auth est prête
     });
     return () => unsubscribe();
   }, []);
@@ -54,20 +54,18 @@ function App() {
     }
   }, [isCartOpen, isSidebarOpen]);
 
-  // --- MODIFICATION SÉCURITÉ ADMIN ---
-  // Seul ton email pourra accéder à la page admin-gs
-  const isAdmin = user && user.email === "yohannesende@gmail.com";
+  // Vérification stricte
+  const isAdmin = user && user.email?.toLowerCase() === "yohannesende@gmail.com";
 
   return (
     <WishlistProvider>
       <CartProvider>
-        {/* Ajout de max-w-[2000px] pour la responsivité sur TV */}
         <div className="font-sans antialiased text-slate-900 flex flex-col min-h-screen bg-white max-w-[2560px] mx-auto overflow-x-hidden">
           
-          {/* Bouton de Synchronisation - Masqué sur mobile pour plus de clarté */}
+          {/* SYNC CATALOGUE */}
           <button 
             onClick={() => {
-              if(window.confirm("Voulez-vous écraser l'ancien catalogue par le nouveau catalogue PREMIUM ?")) {
+              if(window.confirm("Voulez-vous écraser l'ancien catalogue ?")) {
                 uploadAllProducts();
               }
             }}
@@ -91,7 +89,7 @@ function App() {
             onReset={handleResetHome}
           />
           
-          <main className="flex-grow w-full">
+          <main className="flex-grow w-full pt-16 md:pt-20">
             <Routes>
               <Route path="/" element={<Home searchQuery={searchQuery} activeCategory={activeCategory} />} />
               <Route path="/product/:id" element={<ProductDetails />} />
@@ -100,10 +98,20 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/profile" element={<Profile />} />
               
-              {/* Route Admin Sécurisée */}
+              {/* PROTECTION AMÉLIORÉE */}
               <Route 
                 path="/admin-gs" 
-                element={isAdmin ? <Admin /> : <Navigate to="/login" />} 
+                element={
+                  loading ? (
+                    <div className="h-screen flex items-center justify-center bg-white">
+                      <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  ) : isAdmin ? (
+                    <Admin />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                } 
               />
               
               <Route path="/favoris" element={<Favorites />} />
@@ -112,7 +120,6 @@ function App() {
           </main>
 
           <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
-          
           <Footer />
         </div>
       </CartProvider>
