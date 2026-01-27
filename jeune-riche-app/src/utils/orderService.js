@@ -15,6 +15,8 @@ export const createOrder = async (cart, total, deliveryFee, commune, user = null
         name: item.name,
         price: Number(item.price),
         quantity: item.quantity,
+        // MODIFICATION : Ajout de la taille pour l'historique et la préparation de commande
+        size: item.size || null,
         image: item.image || "" // Ajouté pour l'historique client
       })),
       subTotal: Number(total),

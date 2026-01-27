@@ -1,27 +1,47 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useCart } from '../context/CartContext';
-import { ChevronLeft, ShieldCheck, Truck, Download, LayoutGrid, MessageCircle, Ruler } from 'lucide-react';
+import { ChevronLeft, ShieldCheck, Truck, LayoutGrid, MessageCircle, Ruler, AlertTriangle } from 'lucide-react';
 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
-  const [selectedSize, setSelectedSize] = useState(""); // État pour la taille
+  const [selectedSize, setSelectedSize] = useState(""); 
   const { addToCart } = useCart();
 
-  // Listes de tailles
-  const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  // --- PLAGES DE TAILLES PAR DÉFAUT ---
+  const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']; 
   const shoeSizes = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
 
-  // Fonction pour commander directement via WhatsApp
+  // --- LOGIQUE DE DÉTECTION FLEXIBLE ---
+  const rawCategory = product?.category || "";
+  const cleanCategory = rawCategory.toLowerCase().trim()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+
+  const isClothing = cleanCategory.includes("vetement") || cleanCategory.includes("habit") || cleanCategory.includes("ensemble");
+  const isShoes = cleanCategory.includes("chaussure") || cleanCategory.includes("basket");
+  
+  // MODIFICATION : besoins d'une taille si catégorie vêtement/chaussure OU si des tailles existent en BD
+  const needsSize = isClothing || isShoes || (product?.sizes && product.sizes.length > 0);
+
+  // --- LOGIQUE DE STOCK ---
+  const stockCount = product?.stock !== undefined ? Number(product.stock) : 0;
+  const isLowStock = stockCount > 0 && stockCount <= 5;
+
+  // --- MODIFICATION : LOGIQUE DYNAMIQUE DES TAILLES ---
+  // On utilise les tailles de la BD en priorité, sinon les listes par défaut
+  const availableSizes = product?.sizes && product.sizes.length > 0 
+    ? product.sizes 
+    : (isShoes ? shoeSizes : clothingSizes);
+
   const handleWhatsAppOrder = () => {
-    const phoneNumber = "225 07 67 79 31 20"; 
-    const message = `Salut GOATSTORE ! 👋\nJe suis intéressé par cet article :\n\n*Produit:* ${product.name}\n*Taille:* ${selectedSize || 'Non précisée'}\n*Prix:* ${Number(product.price).toLocaleString()} FCFA\n\nEst-ce qu'il est toujours disponible ?`;
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
+    const phoneNumber = "2250767793120"; 
+    const sizeText = selectedSize ? `\n*Taille:* ${selectedSize}` : "";
+    const message = `Salut GOATSTORE ! 👋\nJe suis intéressé par cet article :\n\n*Produit:* ${product.name}${sizeText}\n*Prix:* ${Number(product.price).toLocaleString()} FCFA\n\nEst-ce qu'il est toujours disponible ?`;
+    window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   useEffect(() => {
@@ -41,145 +61,160 @@ const ProductDetails = () => {
   }, [id]);
 
   if (!product) return (
-    <div className="h-screen flex flex-col items-center justify-center gap-4">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">GOATSTORE : Chargement du luxe...</p>
+    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-white" role="alert" aria-busy="true">
+      <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">L'Élite arrive...</p>
     </div>
   );
 
-  // Déterminer quelles tailles afficher
-  const availableSizes = product.category === 'Chaussures' ? shoeSizes : clothingSizes;
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* SECTION IMAGE HERO */}
-      <section className="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden bg-slate-900">
+    <main className="min-h-screen bg-white text-slate-900">
+      {/* HERO SECTION - IMAGE */}
+      <section className="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden bg-black">
         <div className="absolute inset-0">
           <img 
             src={product.image} 
-            className="w-full h-full object-cover opacity-50" 
-            alt={product.name}
+            className="w-full h-full object-cover opacity-60 transition-transform duration-700 hover:scale-105" 
+            alt={`Image de ${product.name}`}
+            onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1516762689617-e1cffcef479d?w=800"; }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-white"></div>
         </div>
 
         <div className="relative z-10 text-center px-4 mt-20">
           <button 
             onClick={() => navigate(-1)}
-            className="absolute -top-24 left-4 flex items-center gap-2 text-white/70 hover:text-white transition-colors font-bold text-[10px] uppercase tracking-[0.2em]"
+            className="absolute -top-24 left-4 flex items-center gap-2 text-white bg-black/50 hover:bg-black backdrop-blur-md px-5 py-2.5 rounded-full transition-all font-bold text-xs uppercase tracking-wider border border-white/20"
           >
-            <ChevronLeft size={16} /> Retour au catalogue G.S
+            <ChevronLeft size={20} /> Retour
           </button>
           
-          <span className="text-orange-500 font-bold tracking-[0.4em] text-[10px] uppercase mb-4 block">
+          <span className="text-orange-400 font-black tracking-[0.3em] text-xs uppercase mb-4 block">
             {product.subCategory || "Exclusivité GOATSTORE"}
           </span>
-          <h1 className="text-4xl md:text-7xl font-black text-white leading-tight uppercase tracking-tighter">
+          <h1 className="text-4xl md:text-7xl font-black text-white leading-tight uppercase tracking-tighter drop-shadow-lg">
             {product.name}
           </h1>
-          <div className="h-1 w-24 bg-orange-600 mx-auto mt-6"></div>
         </div>
       </section>
 
-      {/* SECTION INFOS ET ACHAT */}
-      <section className="max-w-6xl mx-auto px-6 pb-24 -mt-10 relative z-20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+      <section className="max-w-6xl mx-auto px-6 pb-24 -mt-12 relative z-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           
-          {/* Colonne Gauche : Description */}
+          {/* INFOS PRODUIT & TAILLES */}
           <div className="lg:col-span-7 space-y-8">
-            <div className="bg-slate-50 p-8 rounded-3xl border border-slate-100">
-              <h4 className="font-black uppercase text-xs tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                <LayoutGrid size={16} /> Détails G.S Premium
-              </h4>
-              <p className="text-slate-600 leading-relaxed text-lg">
-                {product.description || "Une pièce d'exception sélectionnée pour son style unique et sa qualité supérieure. Disponible uniquement sur GOATSTORE Abidjan."}
+            
+            {isLowStock && (
+              <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-pulse">
+                <AlertTriangle className="text-red-600" size={20} />
+                <p className="text-red-600 font-black uppercase text-[10px] tracking-widest">
+                  Plus que {stockCount} articles disponibles !
+                </p>
+              </div>
+            )}
+
+            <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+              <h2 className="font-black uppercase text-xs tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                <LayoutGrid size={18} aria-hidden="true" /> Détails & Style G.S
+              </h2>
+              <p className="text-slate-700 leading-relaxed text-xl font-medium">
+                {product.description || "Une pièce d'exception sélectionnée par l'élite. Qualité supérieure et design intemporel."}
               </p>
             </div>
 
-            {/* SÉLECTEUR DE TAILLES */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-              <h4 className="font-black uppercase text-xs tracking-widest text-slate-900 mb-6 flex items-center gap-2">
-                <Ruler size={16} className="text-orange-600" /> Choisir votre taille
-              </h4>
-              <div className="flex flex-wrap gap-3">
-                {availableSizes.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`min-w-[50px] h-[50px] flex items-center justify-center rounded-xl font-bold text-sm transition-all border-2
-                      ${selectedSize === size 
-                        ? 'border-orange-600 bg-orange-600 text-white shadow-lg shadow-orange-100 scale-110' 
-                        : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-300'}`}
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
-              {product.category === 'Chaussures' && (
-                <p className="text-[10px] text-slate-400 mt-4 uppercase font-bold tracking-widest">Conseil : Prenez votre pointure habituelle</p>
-              )}
-            </div>
+            {/* SÉLECTEUR DE TAILLES DYNAMIQUE */}
+            {needsSize && (
+              <fieldset className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-center mb-8 w-full">
+                  <h2 className="font-black uppercase text-xs tracking-widest text-slate-900 flex items-center gap-2">
+                    <Ruler size={18} className="text-orange-600" aria-hidden="true" /> 
+                    {/* Titre dynamique selon la source des tailles */}
+                    {product.sizes && product.sizes.length > 0 
+                      ? "Tailles Disponibles" 
+                      : (isShoes ? 'Pointures Disponibles (36-45)' : 'Tailles Disponibles (XS-3XL)')}
+                  </h2>
+                  {selectedSize && (
+                    <span className="text-[10px] font-black text-orange-700 uppercase bg-orange-100 px-3 py-1 rounded-full border border-orange-200">
+                      Sélection : {selectedSize}
+                    </span>
+                  )}
+                </div>
+                
+                {/* flex-wrap permet de gérer n'importe quel nombre de tailles proprement */}
+                <div className="flex flex-wrap gap-3">
+                  {availableSizes.map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSize(size)}
+                      className={`h-14 min-w-[3.5rem] px-4 flex items-center justify-center rounded-2xl font-bold text-sm transition-all duration-200 border-2
+                        ${selectedSize === size 
+                          ? 'border-orange-600 bg-orange-600 text-white shadow-lg scale-105' 
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-orange-300'}`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-start gap-4 p-6 bg-white border border-slate-100 rounded-2xl shadow-sm">
-                <div className="bg-orange-50 p-3 rounded-xl text-orange-600"><Truck size={24} /></div>
+              <div className="flex items-center gap-4 p-6 bg-white border border-slate-200 rounded-[1.5rem]">
+                <div className="bg-orange-100 p-3 rounded-2xl text-orange-700"><Truck size={28} /></div>
                 <div>
-                  <h5 className="font-bold text-sm uppercase">Livraison G.S</h5>
-                  <p className="text-xs text-slate-500 mt-1">Abidjan en 24h via GOATSTORE Express.</p>
+                  <h3 className="font-black text-xs uppercase tracking-wider">Livraison Express</h3>
+                  <p className="text-sm text-slate-600 font-medium">Abidjan en 24h chrono.</p>
                 </div>
               </div>
-              <div className="flex items-start gap-4 p-6 bg-white border border-slate-100 rounded-2xl shadow-sm">
-                <div className="bg-indigo-50 p-3 rounded-xl text-indigo-600"><ShieldCheck size={24} /></div>
+              <div className="flex items-center gap-4 p-6 bg-white border border-slate-200 rounded-[1.5rem]">
+                <div className="bg-blue-100 p-3 rounded-2xl text-blue-700"><ShieldCheck size={28} /></div>
                 <div>
-                  <h5 className="font-bold text-sm uppercase">Garantie G.S</h5>
-                  <p className="text-xs text-slate-500 mt-1">Certifié original & vérifié par GOATSTORE.</p>
+                  <h3 className="font-black text-xs uppercase tracking-wider">Garantie GOAT</h3>
+                  <p className="text-sm text-slate-600 font-medium">Authenticité certifiée.</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Colonne Droite : Achat & WhatsApp */}
-          <div className="lg:col-span-5 lg:sticky lg:top-32">
-            <div className="bg-white p-8 rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100 space-y-4">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <span className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em]">Prix GOATSTORE</span>
-                  <div className="text-4xl font-black text-slate-900 mt-1">
-                    {Number(product.price).toLocaleString()} <span className="text-sm font-medium">FCFA</span>
-                  </div>
+          {/* SIDEBAR D'ACHAT */}
+          <aside className="lg:col-span-5 lg:sticky lg:top-32">
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-6">
+              <div className="text-center">
+                <span className="text-xs font-black text-orange-600 uppercase tracking-widest">Tarif Privilège</span>
+                <div className="text-6xl font-black text-slate-900 mt-2 tracking-tighter">
+                  {Number(product.price).toLocaleString()} <span className="text-lg font-bold">FCFA</span>
                 </div>
               </div>
 
-              {/* Bouton Panier Classique */}
-              <button 
-                onClick={() => addToCart({ ...product, size: selectedSize })}
-                disabled={!selectedSize}
-                className={`w-full py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] transition-all active:scale-95
-                  ${selectedSize 
-                    ? 'bg-slate-900 text-white hover:bg-slate-800' 
-                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-              >
-                {selectedSize ? 'Ajouter au panier' : 'Sélectionnez une taille'}
-              </button>
+              <div className="space-y-4">
+                <button 
+                  onClick={() => addToCart({ ...product, size: selectedSize })}
+                  disabled={(needsSize && !selectedSize) || stockCount === 0}
+                  className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all transform active:scale-95
+                    ${((!needsSize || selectedSize) && stockCount > 0)
+                      ? 'bg-black text-white hover:bg-orange-600 shadow-2xl' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50'}`}
+                >
+                  {stockCount === 0 ? 'SOLD OUT' : (!needsSize || selectedSize) ? 'Ajouter au panier' : 'Choisir une taille'}
+                </button>
 
-              {/* Bouton WhatsApp - Direct Checkout */}
-              <button 
-                onClick={handleWhatsAppOrder}
-                className="w-full bg-[#25D366] text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-[#1fb355] transition-all shadow-xl shadow-green-100 active:scale-95"
-              >
-                <MessageCircle size={18} fill="white" />
-                Commander via WhatsApp
-              </button>
+                <button 
+                  onClick={handleWhatsAppOrder}
+                  className="w-full bg-[#128C7E] text-white py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-[#075E54] transition-all shadow-lg active:scale-95"
+                >
+                  <MessageCircle size={22} fill="currentColor" />
+                  Commander via WhatsApp
+                </button>
+              </div>
 
-              <p className="text-center text-[10px] text-slate-400 mt-6 uppercase font-bold tracking-widest pt-4">
-                Service Premium GOATSTORE • Abidjan
-              </p>
+              <div className="pt-6 border-t border-slate-100 text-center text-[10px] text-slate-400 uppercase font-black tracking-widest">
+                GOATSTORE Premium Service • 2026
+              </div>
             </div>
-          </div>
-
+          </aside>
         </div>
       </section>
-    </div>
+    </main>
   );
 };
 

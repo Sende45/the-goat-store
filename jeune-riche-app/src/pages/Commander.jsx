@@ -17,22 +17,33 @@ const Commander = () => {
     // On récupère l'utilisateur actuellement connecté
     const user = auth.currentUser;
 
+    // MODIFICATION : On s'assure que les items incluent la taille choisie pour la BD
+    const itemsWithSizes = cart.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      size: item.size || null, // Capture la taille sélectionnée
+      image: item.image || ""
+    }));
+
     const orderData = {
       // Informations du formulaire
       customerName: e.target[0].value,
       whatsapp: e.target[1].value,
       address: e.target[2].value,
       
-      // Informations du panier
-      items: cart,
+      // Informations du panier (avec les tailles incluses)
+      items: itemsWithSizes,
       total: cartTotal,
       
       // Liaison avec le compte client
       userId: user ? user.uid : "guest", // Si pas connecté, on marque "guest"
       userEmail: user ? user.email : "non-connecté",
       
-      // Tracking
-      status: "Nouveau",
+      // MODIFICATION : Statut synchronisé avec le système de tracking ("pending")
+      status: "pending",
+      statusLabel: "En attente",
       createdAt: serverTimestamp()
     };
 

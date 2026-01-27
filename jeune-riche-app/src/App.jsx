@@ -21,7 +21,7 @@ import Auth from './pages/Auth';
 import ContactPage from './pages/ContactPage'; 
 import Profile from './pages/Profile';
 import Favorites from './pages/Favorites';
-import { uploadAllProducts } from "./seed-fix"; 
+ 
 
 function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -35,7 +35,6 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log("Auth State Changed:", currentUser?.email); // Debug Console
       setUser(currentUser);
       setLoading(false);
     });
@@ -55,17 +54,25 @@ function App() {
     }
   }, [isCartOpen, isSidebarOpen]);
 
-  // Vérification ultra-stricte (trim pour éviter les espaces invisibles)
   const isAdmin = user && user.email?.trim().toLowerCase() === "yohannesende@gmail.com";
+
+  // --- MODIFICATION : DÉTECTION INTELLIGENTE DE LA CATÉGORIE ---
+  const handleCategorySelection = (cat) => {
+    if (cat === 'All') {
+      setActiveCategory(initialCategory);
+    } else {
+      // Si on clique sur un titre principal (Vêtements, Chaussures, Digital)
+      const mainCats = ["Vêtements", "Chaussures", "Digital"];
+      const type = mainCats.includes(cat) ? 'cat' : 'sub';
+      setActiveCategory({ type: type, value: cat });
+    }
+  };
 
   return (
     <WishlistProvider>
       <CartProvider>
         <div className="font-sans antialiased text-slate-900 flex flex-col min-h-screen bg-white max-w-[2560px] mx-auto overflow-x-hidden">
           
-          {/* Debug Info (Visible uniquement pour toi en cours de test si tu décomptes) */}
-          {/* <div className="fixed top-20 left-0 z-[9999] bg-black text-white text-[8px] p-1">User: {user?.email} | Admin: {isAdmin ? "YES" : "NO"}</div> */}
-
           <button 
             onClick={() => {
               if(window.confirm("Voulez-vous écraser l'ancien catalogue ?")) {
@@ -88,7 +95,8 @@ function App() {
           <Sidebar 
             isOpen={isSidebarOpen} 
             onClose={() => setIsSidebarOpen(false)} 
-            onCategorySelect={(cat) => setActiveCategory({ type: 'filter', value: cat })}
+            // MODIF : Utilisation de la nouvelle fonction de sélection
+            onCategorySelect={handleCategorySelection}
             onReset={handleResetHome}
           />
           
@@ -101,7 +109,6 @@ function App() {
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/profile" element={<Profile />} />
               
-              {/* PROTECTION ADMIN SÉCURISÉE */}
               <Route 
                 path="/admin-gs" 
                 element={

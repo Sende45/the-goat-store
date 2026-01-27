@@ -48,8 +48,9 @@ const CartDrawer = ({ isOpen, onClose }) => {
         // --- TON NUMÉRO ---
         const phoneNumber = "2250767793120"; 
         
+        // MODIFICATION : Inclusion de la taille dans le message WhatsApp
         const message = `*NOUVELLE COMMANDE G.S #${orderId.slice(0, 5)}* 🐐\n\n` + 
-          cart.map(item => `▪️ ${item.name} (x${item.quantity}) - ${item.price.toLocaleString()} FCFA`).join('\n') +
+          cart.map(item => `▪️ ${item.name}${item.size ? ` (Taille: ${item.size})` : ''} (x${item.quantity}) - ${item.price.toLocaleString()} FCFA`).join('\n') +
           `\n\n--------------------------` +
           `\n*Sous-total :* ${cartTotal.toLocaleString()} FCFA` +
           `\n*Livraison (${selectedCommune}) :* ${deliveryFee.toLocaleString()} FCFA` +
@@ -105,15 +106,25 @@ const CartDrawer = ({ isOpen, onClose }) => {
             </div>
           ) : (
             cart.map((item) => (
-              <div key={item.id} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2">
+              // Ajout de item.size dans la key pour éviter les conflits si plusieurs tailles du même produit
+              <div key={`${item.id}-${item.size}`} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2">
                 <div className="h-16 w-16 md:h-20 md:w-20 bg-slate-100 rounded-xl overflow-hidden flex-shrink-0">
                   <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-grow">
                   <div className="flex justify-between items-start">
-                    <h3 className="text-xs md:text-sm font-black uppercase leading-tight max-w-[120px] md:max-w-[150px]">{item.name}</h3>
+                    <div>
+                      <h3 className="text-xs md:text-sm font-black uppercase leading-tight max-w-[120px] md:max-w-[150px]">{item.name}</h3>
+                      
+                      {/* MODIFICATION : Affichage de la taille si elle existe */}
+                      {item.size && (
+                        <p className="text-[9px] font-black text-orange-600 mt-1 uppercase tracking-widest">
+                          Taille: {item.size}
+                        </p>
+                      )}
+                    </div>
                     <button 
-                      onClick={() => removeFromCart(item.id)}
+                      onClick={() => removeFromCart(item.id, item.size)}
                       className="text-slate-300 hover:text-red-500 p-1 transition-colors"
                     >
                       <Trash2 size={16} />

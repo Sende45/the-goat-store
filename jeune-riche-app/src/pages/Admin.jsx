@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { db, auth } from '../firebase';
-import { collection, getDocs, orderBy, query, doc, updateDoc, addDoc, deleteDoc } from "firebase/firestore";
-// Ajout des icônes pour le tracking : Package, Truck, Check
-import { Package, ShoppingCart, Plus, Trash2, CheckCircle, ExternalLink, RefreshCw, X, Image as ImageIcon, Search, Edit2, Truck, Check } from 'lucide-react';
+import { collection, getDocs, orderBy, query, doc, updateDoc, addDoc, deleteDoc, writeBatch } from "firebase/firestore";
+// Icônes conservées et complétées
+import { Package, ShoppingCart, Plus, Trash2, CheckCircle, ExternalLink, RefreshCw, X, Image as ImageIcon, Search, Edit2, Truck, Check, Sparkles } from 'lucide-react';
 
 const Admin = () => {
   const [orders, setOrders] = useState([]);
@@ -23,11 +23,59 @@ const Admin = () => {
     image: '',
     description: '',
     type: 'physique',
-    stock: 10 
+    stock: 10,
+    sizes: [] // Ajout du tableau des tailles
   });
 
   const adminEmail = "yohannesende@gmail.com"; 
   const user = auth.currentUser;
+
+  // Listes pour les sélections
+  const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
+  const shoeSizes = Array.from({ length: 10 }, (_, i) => (36 + i).toString());
+
+  // Fonction pour gérer la multi-sélection des tailles
+  const toggleSize = (size) => {
+    setNewProduct(prev => ({
+      ...prev,
+      sizes: prev.sizes.includes(size) 
+        ? prev.sizes.filter(s => s !== size) 
+        : [...prev.sizes, size]
+    }));
+  };
+
+  // --- MODIF : FONCTION DE NETTOYAGE DES DOUBLONS ---
+  const cleanDuplicates = async () => {
+    if(!window.confirm("Voulez-vous supprimer les produits ayant exactement le même nom ?")) return;
+    setLoading(true);
+    try {
+      const seenNames = new Set();
+      const batch = writeBatch(db);
+      let count = 0;
+
+      products.forEach(p => {
+        const cleanName = p.name?.toLowerCase().trim();
+        if (seenNames.has(cleanName)) {
+          const docRef = doc(db, "products", p.id);
+          batch.delete(docRef);
+          count++;
+        } else {
+          seenNames.add(cleanName);
+        }
+      });
+
+      if (count > 0) {
+        await batch.commit();
+        alert(`${count} doublons supprimés !`);
+        fetchData();
+      } else {
+        alert("Aucun doublon trouvé.");
+      }
+    } catch (error) {
+      alert("Erreur nettoyage: " + error.message);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
     if (user?.email === adminEmail) {
@@ -43,7 +91,13 @@ const Admin = () => {
       setOrders(snapOrders.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
       const snapProds = await getDocs(collection(db, "products"));
-      setProducts(snapProds.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setProducts(snapProds.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        price: Number(doc.data().price) || 0,
+        stock: Number(doc.data().stock) || 0,
+        sizes: doc.data().sizes || [] // Récupération des tailles
+      })));
     } catch (error) {
       console.error("Erreur fetch:", error);
     }
@@ -58,27 +112,28 @@ const Admin = () => {
     }
   };
 
-  // NOUVELLE FONCTION : Mise à jour du statut pour le tracking client
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "orders", orderId);
       await updateDoc(orderRef, { status: newStatus });
-      fetchData(); // Rafraîchit la liste
+      fetchData();
     } catch (error) {
       alert("Erreur lors de la mise à jour du statut");
     }
   };
 
   const handleEditClick = (product) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' }); 
     setEditingId(product.id);
     setNewProduct({
-      name: product.name,
-      price: product.price,
-      category: product.category,
-      image: product.image,
+      name: product.name || '',
+      price: product.price || '',
+      category: product.category || '',
+      image: product.image || '',
       description: product.description || '',
       type: product.type || 'physique',
-      stock: product.stock || 0 
+      stock: product.stock ?? 10,
+      sizes: product.sizes || [] // Charger les tailles existantes
     });
     setPreviewUrl(product.image);
     setShowAddForm(true);
@@ -105,20 +160,19 @@ const Admin = () => {
         }
       }
 
+      const productData = {
+        ...newProduct,
+        image: finalImageUrl,
+        price: Number(newProduct.price),
+        stock: Number(newProduct.stock)
+      };
+
       if (editingId) {
         const productRef = doc(db, "products", editingId);
-        await updateDoc(productRef, {
-          ...newProduct,
-          image: finalImageUrl,
-          price: Number(newProduct.price),
-          stock: Number(newProduct.stock) 
-        });
+        await updateDoc(productRef, productData);
       } else {
         await addDoc(collection(db, "products"), {
-          ...newProduct,
-          image: finalImageUrl,
-          price: Number(newProduct.price),
-          stock: Number(newProduct.stock), 
+          ...productData,
           createdAt: new Date()
         });
       }
@@ -127,7 +181,7 @@ const Admin = () => {
       setEditingId(null);
       setImageFile(null);
       setPreviewUrl(null);
-      setNewProduct({ name: '', price: '', category: '', image: '', description: '', type: 'physique', stock: 10 });
+      setNewProduct({ name: '', price: '', category: '', image: '', description: '', type: 'physique', stock: 10, sizes: [] });
       fetchData();
     } catch (error) {
       alert("Erreur : " + error.message);
@@ -137,8 +191,14 @@ const Admin = () => {
 
   const handleDeleteProduct = async (id) => {
     if(window.confirm("Supprimer cet article du stock ?")) {
-      await deleteDoc(doc(db, "products", id));
-      fetchData();
+      setLoading(true);
+      try {
+        await deleteDoc(doc(db, "products", id));
+        setProducts(prev => prev.filter(p => p.id !== id));
+      } catch (error) {
+        alert("Erreur suppression : " + error.message);
+      }
+      setLoading(false);
     }
   };
 
@@ -155,7 +215,6 @@ const Admin = () => {
     );
   }
 
-  // Calcul du revenu basé sur le statut "delivered" ou "Livré"
   const totalRevenue = orders
     .filter(o => o.status === 'delivered' || o.status === 'Livré')
     .reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
@@ -173,13 +232,23 @@ const Admin = () => {
           </div>
         </div>
         
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-          <button onClick={() => setView('orders')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'orders' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>
-            Commandes ({orders.length})
-          </button>
-          <button onClick={() => setView('products')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'products' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>
-            Stock Produits
-          </button>
+        <div className="flex flex-wrap gap-3">
+          {view === 'products' && (
+            <button 
+              onClick={cleanDuplicates}
+              className="flex items-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg"
+            >
+              <Sparkles size={14} /> Nettoyer Doublons
+            </button>
+          )}
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+            <button onClick={() => setView('orders')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'orders' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>
+              Commandes ({orders.length})
+            </button>
+            <button onClick={() => setView('products')} className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${view === 'products' ? 'bg-white shadow-sm' : 'text-slate-500'}`}>
+              Stock Produits
+            </button>
+          </div>
         </div>
       </div>
 
@@ -196,31 +265,31 @@ const Admin = () => {
         </div>
       )}
 
-      {loading && <RefreshCw className="animate-spin mx-auto text-orange-600 mb-10" />}
+      {loading && <div className="fixed top-32 right-10 animate-spin text-orange-600 z-50"><RefreshCw size={32} /></div>}
 
       {view === 'products' && (
         <>
           {showAddForm && (
             <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
               <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl relative animate-in zoom-in duration-300">
-                <button onClick={() => { setShowAddForm(false); setEditingId(null); }} className="absolute top-6 right-6 text-slate-400 hover:text-black"><X size={24} /></button>
+                <button onClick={() => { setShowAddForm(false); setEditingId(null); setImageFile(null); setPreviewUrl(null); }} className="absolute top-6 right-6 text-slate-400 hover:text-black"><X size={24} /></button>
                 <h2 className="text-2xl font-black uppercase mb-6 tracking-tighter text-orange-600 italic">
                   {editingId ? 'Modifier le produit' : 'Ajouter au Stock'}
                 </h2>
                 
-                <form onSubmit={handleAddProduct} className="space-y-4 overflow-y-auto max-h-[80vh] px-2">
-                  <input required value={newProduct.name} placeholder="Nom du produit" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all" onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                <form onSubmit={handleAddProduct} className="space-y-4 overflow-y-auto max-h-[75vh] px-2">
+                  <input required value={newProduct.name} placeholder="Nom du produit" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all text-slate-900" onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <input required value={newProduct.price} type="number" placeholder="Prix FCFA" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all" onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                    <input required value={newProduct.stock} type="number" placeholder="Stock" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all" onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
+                    <input required value={newProduct.price} type="number" placeholder="Prix FCFA" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all text-slate-900" onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                    <input required value={newProduct.stock} type="number" placeholder="Stock" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all text-slate-900" onChange={e => setNewProduct({...newProduct, stock: e.target.value})} />
                   </div>
 
                   <select 
                     required
                     value={newProduct.category}
-                    className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all appearance-none" 
-                    onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                    className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none border-2 border-transparent focus:border-orange-500 transition-all appearance-none text-slate-900" 
+                    onChange={e => setNewProduct({...newProduct, category: e.target.value, sizes: []})}
                   >
                     <option value="">📁 Catégorie</option>
                     <optgroup label="⚡ DIGITAL">
@@ -241,6 +310,34 @@ const Admin = () => {
                     </optgroup>
                   </select>
 
+                  {/* AJOUT : SÉLECTION DES TAILLES VÊTEMENTS */}
+                  {(newProduct.category === 'Homme' || newProduct.category === 'Femme' || newProduct.category === 'Enfant') && (
+                    <div className="p-4 bg-slate-50 rounded-xl border-2 border-slate-100">
+                      <p className="text-[9px] font-black uppercase mb-3 text-slate-400 tracking-widest">Tailles disponibles :</p>
+                      <div className="flex flex-wrap gap-2">
+                        {clothingSizes.map(size => (
+                          <button key={size} type="button" onClick={() => toggleSize(size)} className={`px-3 py-2 rounded-lg text-[10px] font-black transition-all ${newProduct.sizes.includes(size) ? 'bg-orange-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}>
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AJOUT : SÉLECTION DES POINTURES CHAUSSURES */}
+                  {(newProduct.category === 'Baskets' || newProduct.category === 'Luxe' || newProduct.category === 'Sport') && (
+                    <div className="p-4 bg-slate-50 rounded-xl border-2 border-slate-100">
+                      <p className="text-[9px] font-black uppercase mb-3 text-slate-400 tracking-widest">Pointures disponibles :</p>
+                      <div className="flex flex-wrap gap-2">
+                        {shoeSizes.map(size => (
+                          <button key={size} type="button" onClick={() => toggleSize(size)} className={`px-3 py-2 rounded-lg text-[10px] font-black transition-all ${newProduct.sizes.includes(size) ? 'bg-orange-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}>
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-2">
                     {previewUrl && (
                       <div className="relative w-full h-40 mb-2 rounded-xl overflow-hidden border-2 border-orange-500 bg-slate-50">
@@ -250,11 +347,11 @@ const Admin = () => {
                     <input type="file" accept="image/*" className="hidden" id="image-upload" onChange={handleFileChange} />
                     <label htmlFor="image-upload" className="w-full p-6 bg-slate-100 rounded-xl font-bold border-2 border-dashed border-slate-300 hover:border-orange-500 transition-all cursor-pointer flex flex-col items-center gap-2 text-slate-500">
                       <ImageIcon size={24} className={imageFile ? "text-orange-600" : ""} />
-                      <span className="text-[10px] uppercase tracking-tighter">{imageFile ? `Image choisie` : (editingId ? "Changer la photo" : "Photo du produit")}</span>
+                      <span className="text-[10px] uppercase tracking-tighter">{imageFile ? `Image prête` : (editingId ? "Remplacer la photo" : "Photo du produit")}</span>
                     </label>
                   </div>
 
-                  <textarea value={newProduct.description} placeholder="Description" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none h-24 border-2 border-transparent focus:border-orange-500 transition-all" onChange={e => setNewProduct({...newProduct, description: e.target.value})} />
+                  <textarea value={newProduct.description} placeholder="Description" className="w-full p-4 bg-slate-100 rounded-xl font-bold outline-none h-24 border-2 border-transparent focus:border-orange-500 transition-all text-slate-900" onChange={e => setNewProduct({...newProduct, description: e.target.value})} />
                   
                   <button type="submit" disabled={loading} className="w-full bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl disabled:opacity-50">
                     {loading ? "Enregistrement..." : (editingId ? "Enregistrer les modifications" : "Publier sur GOATSTORE")}
@@ -266,36 +363,47 @@ const Admin = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {!searchTerm && (
-              <div onClick={() => setShowAddForm(true)} className="group border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 text-slate-300 hover:text-orange-600 hover:border-orange-200 transition-all cursor-pointer bg-white">
+              <div onClick={() => setShowAddForm(true)} className="group border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center p-10 min-h-[480px] text-slate-300 hover:text-orange-600 hover:border-orange-200 transition-all cursor-pointer bg-white">
                 <Plus size={40} />
                 <span className="font-black uppercase text-[10px] mt-4 tracking-widest">Nouveau</span>
               </div>
             )}
 
             {filteredProducts.map(product => (
-              <div key={product.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group">
-                <img src={product.image} alt="" className="w-full h-48 object-cover rounded-2xl mb-4 group-hover:scale-110 transition-transform duration-500" />
+              <div key={product.id} className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group flex flex-col min-h-[480px] transition-all hover:shadow-xl hover:-translate-y-1">
+                <div className="relative h-48 w-full overflow-hidden">
+                  <img src={product.image} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                  <div className="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[8px] font-black uppercase">
+                    {product.category}
+                  </div>
+                </div>
                 
-                <div className={`absolute top-16 right-6 px-2 py-1 rounded text-[8px] font-black uppercase ${product.stock <= 5 ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
-                  Stock: {product.stock || 0}
-                </div>
+                <div className="p-6 flex flex-col flex-grow">
+                  <div className="mb-4">
+                    <div className={`inline-block mb-2 px-2 py-1 rounded text-[8px] font-black uppercase ${Number(product.stock) <= 5 ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
+                      Stock: {product.stock || 0}
+                    </div>
+                    <h4 className="font-black uppercase italic text-sm tracking-tighter line-clamp-2 leading-tight h-10">{product.name}</h4>
+                    <p className="text-orange-600 font-black text-lg mt-1">{Number(product.price).toLocaleString()} FCFA</p>
+                    
+                    {/* AFFICHAGE DES TAILLES SUR LA CARTE */}
+                    {product.sizes && product.sizes.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {product.sizes.map(s => (
+                          <span key={s} className="bg-slate-100 text-[8px] px-2 py-0.5 rounded font-bold text-slate-500">{s}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex justify-between items-start px-2">
-                  <div className="flex-1 mr-2">
-                    <h4 className="font-black uppercase italic text-sm tracking-tighter truncate">{product.name}</h4>
-                    <p className="text-orange-600 font-black text-sm">{product.price?.toLocaleString()} FCFA</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => handleEditClick(product)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors bg-slate-50 rounded-xl">
-                      <Edit2 size={16} />
+                  <div className="mt-auto flex gap-2 pt-4 border-t border-slate-50">
+                    <button onClick={() => handleEditClick(product)} className="flex-1 flex items-center justify-center gap-2 py-3 text-slate-500 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl font-black text-[9px] uppercase tracking-widest">
+                      <Edit2 size={14} /> Modifier
                     </button>
-                    <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-slate-200 hover:text-red-500 transition-colors bg-slate-50 rounded-xl">
-                      <Trash2 size={18} />
+                    <button onClick={() => handleDeleteProduct(product.id)} className="p-3 text-slate-300 hover:text-red-500 transition-colors bg-slate-50 rounded-xl">
+                      <Trash2 size={16} />
                     </button>
                   </div>
-                </div>
-                <div className="absolute top-6 right-6 bg-slate-900/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[8px] font-black uppercase">
-                  {product.category}
                 </div>
               </div>
             ))}
@@ -309,7 +417,6 @@ const Admin = () => {
             <div key={order.id} className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8 group">
               <div className="flex-grow">
                 <div className="flex items-center gap-3 mb-2">
-                  {/* Affichage dynamique du statut stylisé */}
                   <span className={`text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest 
                     ${order.status === 'delivered' || order.status === 'Livré' ? 'bg-green-500 text-white' : 
                       order.status === 'shipped' ? 'bg-blue-500 text-white' : 
@@ -326,42 +433,24 @@ const Admin = () => {
                 <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-tighter">Commune: {order.address}</p>
               </div>
 
-              {/* SECTION ACTIONS TRACKING */}
               <div className="flex flex-col items-end gap-3">
-                <p className="font-black text-2xl tracking-tighter">{order.total?.toLocaleString()} FCFA</p>
-                
+                <p className="font-black text-2xl tracking-tighter">{Number(order.total).toLocaleString()} FCFA</p>
                 <div className="flex flex-wrap gap-2 justify-end">
-                  {/* Bouton Étape 2 : Préparation */}
                   {(!order.status || order.status === 'pending') && (
-                    <button 
-                      onClick={() => updateOrderStatus(order.id, 'processing')} 
-                      className="bg-purple-50 text-purple-600 border border-purple-100 text-[9px] px-4 py-2 rounded-xl font-black uppercase hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2"
-                    >
+                    <button onClick={() => updateOrderStatus(order.id, 'processing')} className="bg-purple-50 text-purple-600 border border-purple-100 text-[9px] px-4 py-2 rounded-xl font-black uppercase hover:bg-purple-600 hover:text-white transition-all flex items-center gap-2">
                       <Package size={12} /> Préparer
                     </button>
                   )}
-
-                  {/* Bouton Étape 3 : Expédition */}
                   {(order.status === 'processing' || !order.status) && (
-                    <button 
-                      onClick={() => updateOrderStatus(order.id, 'shipped')} 
-                      className="bg-blue-50 text-blue-600 border border-blue-100 text-[9px] px-4 py-2 rounded-xl font-black uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
-                    >
+                    <button onClick={() => updateOrderStatus(order.id, 'shipped')} className="bg-blue-50 text-blue-600 border border-blue-100 text-[9px] px-4 py-2 rounded-xl font-black uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2">
                       <Truck size={12} /> Expédier
                     </button>
                   )}
-
-                  {/* Bouton Étape Finale : Livraison Terminer */}
                   {(order.status !== 'delivered' && order.status !== 'Livré') && (
-                    <button 
-                      onClick={() => updateOrderStatus(order.id, 'delivered')} 
-                      className="bg-black text-white text-[9px] px-6 py-3 rounded-xl font-black uppercase hover:bg-green-600 transition-all shadow-lg flex items-center gap-2"
-                    >
+                    <button onClick={() => updateOrderStatus(order.id, 'delivered')} className="bg-black text-white text-[9px] px-6 py-3 rounded-xl font-black uppercase hover:bg-green-600 transition-all shadow-lg flex items-center gap-2">
                       <Check size={12} /> Marquer Livré
                     </button>
                   )}
-                  
-                  {/* Indicateur de succès */}
                   {(order.status === 'delivered' || order.status === 'Livré') && (
                     <div className="flex items-center gap-2 text-green-600 font-black text-[10px] uppercase italic">
                       <CheckCircle size={16} /> Commande Terminée
