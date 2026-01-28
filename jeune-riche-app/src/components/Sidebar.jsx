@@ -1,7 +1,6 @@
 import React from 'react';
 import { Shirt, Smartphone, Footprints, ChevronRight, X, LayoutGrid } from 'lucide-react';
 
-// AJOUT DE LA PROP onReset ICI
 const Sidebar = ({ isOpen, onClose, onCategorySelect, onReset }) => {
   const categories = [
     {
@@ -23,56 +22,57 @@ const Sidebar = ({ isOpen, onClose, onCategorySelect, onReset }) => {
 
   return (
     <>
-      {/* 1. OVERLAY - Flou plus prononcé pour la concentration visuelle */}
+      {/* 1. OVERLAY - Adapté au tactile */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] transition-opacity duration-300"
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] transition-opacity duration-300"
           onClick={onClose}
         />
       )}
 
-      {/* 2. SIDEBAR */}
-      <div className={`fixed inset-y-0 left-0 z-[70] w-85 bg-white shadow-2xl transform ${
+      {/* 2. SIDEBAR - Largeur responsive : 85% sur mobile, max 350px sur PC */}
+      <div className={`fixed inset-y-0 left-0 z-[110] w-[85%] sm:w-[350px] bg-white shadow-2xl transform ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
-      } transition-transform duration-300 ease-in-out`}>
+      } transition-transform duration-500 ease-in-out border-r border-gray-100`}>
         
-        {/* Header - Contraste élevé */}
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
-          <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">
+        {/* Header - Fixe en haut pour mobile */}
+        <div className="sticky top-0 p-5 border-b border-gray-100 flex items-center justify-between bg-white z-10">
+          <h2 className="text-lg font-black text-gray-900 tracking-tight uppercase">
             G.S <span className="text-orange-600">Catalogue</span>
           </h2>
           <button 
             onClick={onClose} 
-            aria-label="Fermer le menu"
-            className="p-3 hover:bg-gray-100 rounded-full transition-colors text-gray-900"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-900 active:scale-90"
           >
-            <X size={28} />
+            <X size={24} />
           </button>
         </div>
         
-        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-140px)]">
-          {/* MODIF : Le bouton utilise onReset pour vraiment tout réinitialiser sur Home */}
+        {/* Navigation - Scroll fluide sur mobile */}
+        <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-140px)] scrollbar-hide">
+          
           <button 
             onClick={() => { onReset(); onClose(); }}
-            className="flex items-center gap-3 w-full p-4 mb-4 font-black text-xs uppercase tracking-widest text-white bg-black rounded-xl hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-gray-200 group"
+            className="flex items-center gap-3 w-full p-4 mb-6 font-black text-[10px] uppercase tracking-widest text-white bg-black rounded-2xl hover:bg-orange-600 active:scale-[0.98] transition-all shadow-lg shadow-gray-200 group"
           >
-            <LayoutGrid size={20} className="group-hover:rotate-90 transition-transform duration-300" /> 
+            <LayoutGrid size={18} className="group-hover:rotate-90 transition-transform duration-300" /> 
             Voir tout l'univers G.S
           </button>
 
           {categories.map((cat) => (
             <div key={cat.name} className="space-y-1 mb-6">
-              {/* MODIF : La catégorie parente est maintenant un bouton cliquable */}
+              {/* Catégorie parente - Zone de clic agrandie pour les pouces */}
               <button 
                 onClick={() => { onCategorySelect(cat.name); onClose(); }}
-                className="flex items-center gap-3 w-full p-4 font-black text-gray-900 bg-gray-50 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50/30 transition-all duration-200"
+                className="flex items-center gap-3 w-full p-4 font-black text-gray-900 bg-gray-50 rounded-2xl border border-gray-100 active:bg-orange-50 transition-all duration-200"
               >
                 <span className="text-orange-600">{cat.icon}</span>
-                <span className="flex-1 text-left uppercase text-xs tracking-[0.15em]">{cat.name}</span>
+                <span className="flex-1 text-left uppercase text-[10px] tracking-[0.15em]">{cat.name}</span>
                 <ChevronRight size={14} className="text-gray-400" />
               </button>
               
-              <div className="ml-6 flex flex-col space-y-1 border-l-4 border-orange-100 pl-4 mt-3 animate-in slide-in-from-left-2 duration-300">
+              {/* Sous-catégories - Espacement optimisé pour mobile */}
+              <div className="ml-4 flex flex-col space-y-1 border-l-2 border-orange-100 pl-4 mt-2">
                 {cat.sub.map(s => (
                   <button 
                     key={s}
@@ -80,10 +80,10 @@ const Sidebar = ({ isOpen, onClose, onCategorySelect, onReset }) => {
                         onCategorySelect(s); 
                         onClose(); 
                     }}
-                    className="flex items-center justify-between w-full p-3 text-sm font-bold text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all group"
+                    className="flex items-center justify-between w-full p-3.5 text-sm font-bold text-gray-600 active:text-orange-600 active:bg-orange-50 rounded-xl transition-all group"
                   >
-                    <span className="text-[15px]">{s}</span>
-                    <ChevronRight size={18} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-orange-600" />
+                    <span className="text-[14px]">{s}</span>
+                    <ChevronRight size={16} className="opacity-40 text-orange-600" />
                   </button>
                 ))}
               </div>
@@ -91,8 +91,8 @@ const Sidebar = ({ isOpen, onClose, onCategorySelect, onReset }) => {
           ))}
         </nav>
 
-        {/* Footer - Texte plus lisible */}
-        <div className="absolute bottom-0 w-full p-6 border-t bg-white text-[11px] text-gray-500 font-black uppercase tracking-widest text-center">
+        {/* Footer - Fixe en bas */}
+        <div className="absolute bottom-0 w-full p-5 border-t bg-gray-50 text-[9px] text-gray-400 font-black uppercase tracking-[0.2em] text-center">
           GOATSTORE Premium Edition • 2026
         </div>
       </div>
