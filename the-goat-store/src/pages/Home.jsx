@@ -1,27 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase'; 
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, limit } from "firebase/firestore";
 import ProductCard from '../components/ProductCard';
-import { ShoppingBag, Mail, Quote, Send } from 'lucide-react'; 
- 
+import { ShoppingBag, Mail, Send, ArrowRight, Sparkles, Trophy, MousePointer2 } from 'lucide-react'; 
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Home = ({ searchQuery = "", activeCategory = { type: 'All', value: 'La Collection' } }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-
+  // 1. Fetching optimisé avec limite pour le premier rendu
   useEffect(() => {
     const fetchProducts = async () => {
-      if (!activeCategory || !activeCategory.type) return;
+      if (!activeCategory?.type) return;
       setLoading(true);
       try {
         let q = collection(db, "products");
-        
         if (activeCategory.type !== 'All') {
           const filterField = ["Vêtements", "Chaussures", "Digital"].includes(activeCategory.value) 
             ? "category" 
             : "subCategory";
-            
           q = query(q, where(filterField, "==", activeCategory.value));
         }
         
@@ -29,12 +27,11 @@ const Home = ({ searchQuery = "", activeCategory = { type: 'All', value: 'La Col
         const productsData = querySnapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data(),
-          stock: doc.data().stock !== undefined ? Number(doc.data().stock) : 0,
-          image: doc.data().image || ""
+          stock: Number(doc.data().stock || 0),
         }));
         setProducts(productsData);
       } catch (error) { 
-        console.error("Erreur Firebase Home:", error); 
+        console.error("Firebase Error:", error); 
       } finally { 
         setLoading(false); 
       }
@@ -42,99 +39,188 @@ const Home = ({ searchQuery = "", activeCategory = { type: 'All', value: 'La Col
     fetchProducts();
   }, [activeCategory]);
 
-  const filteredProducts = products.filter(p => 
-    p.name?.toLowerCase().includes(searchQuery?.toLowerCase() || "")
-  );
+  // 2. Mémorisation du filtrage (Performance)
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => 
+      p.name?.toLowerCase().includes(searchQuery?.toLowerCase() || "")
+    );
+  }, [products, searchQuery]);
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-white">
-      {/* 1. HERO SECTION */}
-      <section className="relative h-[50vh] md:h-[60vh] lg:h-[70vh] flex items-center justify-center bg-[#0f172a] mt-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-orange-600/10 to-transparent"></div>
-        <div className="relative z-10 text-center px-4 w-full max-w-[2000px] mx-auto">
-          <span className="text-orange-500 font-bold tracking-[0.4em] md:tracking-[0.8em] text-[8px] md:text-[10px] uppercase mb-4 block animate-pulse">
-            L'ÉLITE D'ABIDJAN
-          </span>
-          <h2 className="text-[12vw] md:text-[10vw] lg:text-[8rem] xl:text-[10rem] font-black text-white leading-none uppercase tracking-tighter opacity-90 break-words px-2">
-            {activeCategory?.value || 'La Collection'}
-          </h2>
+    <div className="min-h-screen bg-white">
+      
+      {/* --- HERO SECTION : "THE GOAT EXPERIENCE" --- */}
+      <section className="relative h-[85vh] flex items-center justify-center bg-[#020617] overflow-hidden">
+        {/* Animated Mesh Background */}
+        <motion.div 
+          animate={{ 
+            scale: [1, 1.1, 1],
+            opacity: [0.3, 0.5, 0.3] 
+          }}
+          transition={{ duration: 8, repeat: Infinity }}
+          className="absolute inset-0 z-0"
+        >
+          <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-orange-600/20 blur-[120px] rounded-full" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full" />
+        </motion.div>
+
+        <div className="relative z-10 text-center px-6">
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8"
+          >
+            <Trophy size={12} className="text-orange-500" />
+            <span className="text-white font-black tracking-[0.4em] text-[9px] uppercase">
+              Limited Edition Drops
+            </span>
+          </motion.div>
+
+          <div className="overflow-hidden">
+            <motion.h2 
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="text-[12vw] lg:text-[9rem] font-black text-white leading-[0.85] uppercase tracking-tighter"
+            >
+              {activeCategory?.value || 'GOAT'}
+              <span className="text-orange-600 inline-block animate-pulse">.</span>
+            </motion.h2>
+          </div>
+
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 text-slate-400 text-sm md:text-lg max-w-2xl mx-auto font-light leading-relaxed"
+          >
+            La destination ultime pour le streetwear de luxe et les pièces rares à Abidjan.
+          </motion.p>
+
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mt-12 flex flex-col items-center gap-4"
+          >
+            <div className="text-white/30 text-[9px] font-bold tracking-[0.5em] uppercase flex items-center gap-4">
+              <span className="h-[1px] w-8 bg-white/20" />
+              Scroll to explore
+              <span className="h-[1px] w-8 bg-white/20" />
+            </div>
+            <motion.div 
+              animate={{ y: [0, 10, 0] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="w-5 h-8 border-2 border-white/20 rounded-full flex justify-center p-1"
+            >
+              <div className="w-1 h-1 bg-orange-500 rounded-full" />
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
-      {/* 2. GRILLE PRODUITS */}
-      <section className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-10 py-12 md:py-20">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-10 h-10 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Chargement du stock...</p>
+      {/* --- GRILLE PRODUITS : "THE GRID" --- */}
+      <section className="max-w-[1600px] mx-auto px-6 md:px-12 py-24">
+        <div className="flex flex-wrap items-end justify-between mb-20 gap-8">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-orange-600 font-black text-xs uppercase tracking-[0.3em]">
+              <Sparkles size={16} />
+              <span>New Arrivals</span>
+            </div>
+            <h3 className="text-5xl md:text-7xl font-black text-slate-950 uppercase tracking-tighter">
+              The Drop<span className="text-orange-600">.</span>
+            </h3>
           </div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-20 bg-slate-50 rounded-[2rem] border border-dashed border-slate-200 mx-4">
-            <ShoppingBag size={40} className="mx-auto text-slate-200 mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sold Out</p>
+          <div className="bg-slate-50 border border-slate-100 px-6 py-4 rounded-2xl">
+            <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
+              Available Units: <span className="text-slate-950">{filteredProducts.length}</span>
+            </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-8">
-            {filteredProducts.map(product => {
-                const cat = product.category?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
-                const isShoe = cat.includes("chaussure");
-                const isClothing = cat.includes("vetement") || cat.includes("habit") || cat.includes("ensemble");
+        </div>
 
-                return (
-                  <div key={product.id} className="group flex flex-col">
-                     <ProductCard {...product} />
-                     
-                     {(isShoe || isClothing) && (
-                       <div className="mt-3 px-2 flex items-center gap-2 animate-in fade-in duration-500">
-                         <div className="h-[1px] flex-1 bg-slate-100 group-hover:bg-orange-100 transition-colors"></div>
-                         <span className="text-[9px] font-black text-orange-600 uppercase tracking-[0.15em] whitespace-nowrap bg-orange-50/50 px-2 py-0.5 rounded-md border border-orange-100/50">
-                           {isShoe ? 'Pointures : 36 — 45' : 'Tailles : XS — 3XL'}
-                         </span>
-                         <div className="h-[1px] flex-1 bg-slate-100 group-hover:bg-orange-100 transition-colors"></div>
-                       </div>
-                     )}
-
-                     {(!isShoe && !isClothing) && (
-                       <div className="mt-3 px-2 flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
-                         <div className="h-[1px] flex-1 bg-slate-50"></div>
-                         <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Premium Edition</span>
-                         <div className="h-[1px] flex-1 bg-slate-50"></div>
-                       </div>
-                     )}
+        <AnimatePresence mode="wait">
+          {loading ? (
+            <motion.div 
+              key="loader"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="py-40 flex flex-col items-center justify-center gap-8"
+            >
+              <div className="w-20 h-20 border-w-2 border-orange-600/20 border-t-orange-600 rounded-full animate-spin border-4" />
+              <span className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400">Loading Collection</span>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="grid"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              variants={{
+                visible: { transition: { staggerChildren: 0.05 } }
+              }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-20"
+            >
+              {filteredProducts.map((product) => (
+                <motion.div 
+                  key={product.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 30 },
+                    visible: { opacity: 1, y: 0 }
+                  }}
+                  className="group relative"
+                >
+                  <ProductCard {...product} />
+                  
+                  {/* Metadata Overlay Design */}
+                  <div className="mt-6 flex flex-col gap-4 border-l-2 border-slate-100 pl-4 group-hover:border-orange-500 transition-colors duration-500">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                      <span className="text-slate-400 italic font-medium">Availability</span>
+                      <span className={product.stock > 0 ? "text-emerald-500" : "text-rose-500"}>
+                        {product.stock > 0 ? `In Stock (${product.stock})` : 'Sold Out'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
+                      <span className="text-[11px] font-bold text-slate-900 uppercase">
+                        {product.subCategory || 'Original Series'}
+                      </span>
+                    </div>
                   </div>
-                );
-            })}
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
+
+      {/* --- CTA SECTION : NEWSLETTER --- */}
+      <section className="mx-6 mb-12">
+        <div className="max-w-[1400px] mx-auto rounded-[3rem] bg-[#020617] p-12 md:p-24 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-orange-600/10 to-transparent" />
+          
+          <div className="relative z-10 max-w-2xl">
+            <h4 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter mb-8 leading-tight">
+              Don't miss the <br />
+              <span className="text-orange-500 underline decoration-white/10">Next Drop.</span>
+            </h4>
+            <p className="text-slate-400 text-lg mb-12 font-medium">
+              Rejoignez le cercle privé G.S et recevez les codes d'accès 24h avant la sortie officielle.
+            </p>
+
+            <form className="flex flex-col sm:flex-row gap-4 p-2 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10" onSubmit={e => e.preventDefault()}>
+              <input 
+                type="email" 
+                placeholder="Elite@protocol.com"
+                className="flex-1 bg-transparent px-6 py-4 outline-none text-white font-bold"
+              />
+              <button className="bg-white text-black hover:bg-orange-600 hover:text-white px-8 py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest transition-all flex items-center justify-center gap-3">
+                Join Squad <Send size={16} />
+              </button>
+            </form>
           </div>
-        )}
-      </section>
-
-      {/* 3. MANIFESTE */}
-      <section className="py-16 md:py-24 bg-slate-50 border-y border-slate-100">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <Quote className="mx-auto text-orange-600 mb-6 md:opacity-20" size={32} />
-          <h3 className="text-2xl md:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tighter mb-6">
-            Manifeste GOATSTORE
-          </h3>
-          <p className="text-base md:text-lg lg:text-xl text-slate-600 leading-relaxed font-medium italic">
-            "Plus qu'une boutique, un standard de vie. Nous sélectionnons uniquement le meilleur du digital et de la mode pour ceux qui visent le sommet."
-          </p>
         </div>
       </section>
 
-      {/* 4. NEWSLETTER */}
-      <section className="py-20 md:py-32 bg-[#0f172a] text-white overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-64 md:w-96 h-64 md:h-96 bg-orange-600/10 blur-[100px] rounded-full"></div>
-        <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
-          <Mail className="mx-auto text-orange-500 mb-8" size={32} />
-          <h4 className="text-3xl md:text-4xl lg:text-5xl font-black uppercase tracking-tighter mb-6">Rejoignez le Club GOAT</h4>
-          <form className="flex flex-col sm:flex-row gap-4 max-w-2xl mx-auto px-2" onSubmit={(e) => e.preventDefault()}>
-            <input type="email" placeholder="Ton email premium" className="w-full flex-1 bg-white/5 border border-white/10 px-6 py-4 rounded-xl focus:border-orange-500 transition-all text-white text-sm" />
-            <button className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700 text-white font-black uppercase text-[10px] px-8 py-4 rounded-xl flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-orange-600/20">
-              S'inscrire <Send size={16} />
-            </button>
-          </form>
-        </div>
-      </section>
     </div>
   );
 };

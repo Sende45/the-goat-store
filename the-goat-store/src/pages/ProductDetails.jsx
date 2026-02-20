@@ -1,56 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useCart } from '../context/CartContext';
-import { ChevronLeft, ShieldCheck, Truck, LayoutGrid, MessageCircle, Ruler, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { 
+  ChevronLeft, ShieldCheck, Truck, LayoutGrid, 
+  MessageCircle, Ruler, AlertTriangle, CheckCircle2, 
+  Zap, Share2, Info
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [selectedSize, setSelectedSize] = useState(""); 
-  const [showToast, setShowToast] = useState(false); // État pour la notif automatique
+  const [showToast, setShowToast] = useState(false);
   const { addToCart } = useCart();
 
-  const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']; 
-  const shoeSizes = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45'];
-
-  const rawCategory = product?.category || "";
-  const cleanCategory = rawCategory.toLowerCase().trim()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
-
-  const isClothing = cleanCategory.includes("vetement") || cleanCategory.includes("habit") || cleanCategory.includes("ensemble");
-  const isShoes = cleanCategory.includes("chaussure") || cleanCategory.includes("basket");
-  
-  const needsSize = isClothing || isShoes || (product?.sizes && product.sizes.length > 0);
-  const stockCount = product?.stock !== undefined ? Number(product.stock) : 0;
-  const isLowStock = stockCount > 0 && stockCount <= 5;
-
-  const availableSizes = product?.sizes && product.sizes.length > 0 
-    ? product.sizes 
-    : (isShoes ? shoeSizes : clothingSizes);
-
-  // --- CETTE FONCTION REMPLACE L'ALERT() PAR UNE NOTIF AUTOMATIQUE ---
-  const handleAddToCart = () => {
-    // On ajoute au panier sans appeler d'alert
-    addToCart({ ...product, size: selectedSize });
-    
-    // On affiche le message pro
-    setShowToast(true);
-    
-    // Il disparaît seul après 3 secondes
-    setTimeout(() => {
-      setShowToast(false);
-    }, 3000);
-  };
-
-  const handleWhatsAppOrder = () => {
-    const phoneNumber = "2250767793120"; 
-    const sizeText = selectedSize ? `\n*Taille:* ${selectedSize}` : "";
-    const message = `Salut GOATSTORE ! 👋\nJe suis intéressé par cet article :\n\n*Produit:* ${product.name}${sizeText}\n*Prix:* ${Number(product.price).toLocaleString()} FCFA\n\nEst-ce qu'il est toujours disponible ?`;
-    window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
-  };
+  // Optimisation : On mémoïse les calculs de catégories pour éviter les recalculs inutiles
+  const categoryStatus = useMemo(() => {
+    if (!product) return { isClothing: false, isShoes: false };
+    const clean = (product.category || "").toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return {
+      isClothing: clean.includes("vetement") || clean.includes("habit") || clean.includes("ensemble"),
+      isShoes: clean.includes("chaussure") || clean.includes("basket")
+    };
+  }, [product]);
 
   useEffect(() => {
     const getProduct = async () => {
@@ -61,164 +37,171 @@ const ProductDetails = () => {
           setProduct({ id: docSnap.id, ...docSnap.data() });
         }
       } catch (error) {
-        console.error("Erreur récupération produit:", error);
+        console.error("Erreur:", error);
       }
     };
     getProduct();
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]);
 
+  const handleAddToCart = () => {
+    addToCart({ ...product, size: selectedSize });
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleWhatsAppOrder = () => {
+    const phoneNumber = "2250767793120"; 
+    const sizeText = selectedSize ? `\n*Taille:* ${selectedSize}` : "";
+    const message = `Salut GOATSTORE ! 👋\nJe veux commander ceci :\n\n*Produit:* ${product.name}${sizeText}\n*Prix:* ${Number(product.price).toLocaleString()} FCFA\n\nEst-ce disponible ?`;
+    window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   if (!product) return (
-    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-white">
-      <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">L'Élite arrive...</p>
+    <div className="h-screen flex flex-col items-center justify-center bg-white">
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-10 h-10 border-2 border-orange-600 border-t-transparent rounded-full" />
     </div>
   );
 
+  const stockCount = Number(product.stock || 0);
+  const availableSizes = product.sizes?.length > 0 ? product.sizes : (categoryStatus.isShoes ? ['39','40','41','42','43','44','45'] : ['S','M','L','XL','XXL']);
+
   return (
-    <main className="min-h-screen bg-white text-slate-900 relative">
+    <main className="min-h-screen bg-[#FAFAFA] text-slate-900 pb-12">
       
-      {/* NOTIFICATION AUTOMATIQUE PRO */}
-      {showToast && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm animate-in fade-in zoom-in slide-in-from-top-4 duration-300">
-          <div className="bg-black/90 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3">
-            <div className="bg-orange-600 p-1.5 rounded-full">
-              <CheckCircle2 size={18} className="text-white" />
+      {/* TOAST NOTIFICATION MODERNE */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -50 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm"
+          >
+            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10">
+              <CheckCircle2 size={20} className="text-orange-500" />
+              <p className="text-xs font-black uppercase tracking-widest">Ajouté avec succès !</p>
             </div>
-            <p className="text-sm font-bold tracking-tight">
-              {product.name} ajouté au panier !
-            </p>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* BOUTON RETOUR FIXÉ */}
-      <button 
-        onClick={() => navigate(-1)}
-        className="fixed top-6 left-6 z-[100] flex items-center gap-2 text-white bg-black/60 hover:bg-black backdrop-blur-md px-5 py-2.5 rounded-full transition-all font-bold text-xs uppercase tracking-wider border border-white/20 shadow-2xl"
-      >
-        <ChevronLeft size={20} /> Retour
-      </button>
-
-      {/* HERO SECTION */}
-      <section className="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden bg-black">
-        <div className="absolute inset-0">
-          <img 
-            src={product.image} 
-            className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" 
-            alt={product.name}
-            onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1516762689617-e1cffcef479d?w=800"; }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-        </div>
-
-        <div className="relative z-10 text-center px-4 mt-20">
-          <span className="text-orange-400 font-black tracking-[0.3em] text-xs uppercase mb-4 block drop-shadow-md">
-            {product.subCategory || "Exclusivité GOATSTORE"}
-          </span>
-          <h1 className="text-4xl md:text-7xl font-black text-white leading-tight uppercase tracking-tighter drop-shadow-lg">
-            {product.name}
-          </h1>
-        </div>
-      </section>
-
-      <section className="max-w-6xl mx-auto px-6 pb-24 -mt-12 relative z-20">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+      <div className="max-w-7xl mx-auto md:pt-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 md:gap-12">
           
-          <div className="lg:col-span-7 space-y-8">
-            {isLowStock && (
-              <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 animate-pulse">
-                <AlertTriangle className="text-red-600" size={20} />
-                <p className="text-red-600 font-black uppercase text-[10px] tracking-widest">
-                  Plus que {stockCount} articles disponibles !
-                </p>
-              </div>
-            )}
+          {/* SECTION IMAGE : COLLÉE AU BORD SUR MOBILE */}
+          <div className="relative group">
+            <button 
+              onClick={() => navigate(-1)}
+              className="absolute top-6 left-6 z-50 bg-white/90 backdrop-blur-md p-3 rounded-2xl shadow-xl hover:scale-110 transition-transform"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            
+            <div className="aspect-[4/5] md:rounded-[3rem] overflow-hidden bg-white shadow-2xl">
+              <img 
+                src={product.image} 
+                className="w-full h-full object-cover" 
+                alt={product.name}
+              />
+            </div>
 
-            <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-200 shadow-sm">
-              <h2 className="font-black uppercase text-xs tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-                <LayoutGrid size={18} /> Détails & Style G.S
-              </h2>
-              <p className="text-slate-700 leading-relaxed text-xl font-medium">
-                {product.description || "Une pièce d'exception sélectionnée par l'élite."}
+            {/* Badges Flottants */}
+            <div className="absolute bottom-6 left-6 flex flex-wrap gap-2">
+              <span className="bg-black text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest">
+                New Drop
+              </span>
+              {stockCount <= 5 && stockCount > 0 && (
+                <span className="bg-orange-600 text-white text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest animate-pulse">
+                  Rare : {stockCount} restants
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* SECTION INFOS */}
+          <div className="p-6 md:p-0 flex flex-col justify-center">
+            <div className="mb-8">
+              <div className="flex items-center gap-2 text-orange-600 mb-4">
+                <Zap size={14} fill="currentColor" />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em]">Exclusivité GS Abidjan</span>
+              </div>
+              <h1 className="text-4xl md:text-6xl font-black text-slate-900 uppercase tracking-tighter mb-4 leading-none">
+                {product.name}
+              </h1>
+              <p className="text-3xl font-light text-slate-400 tracking-tighter">
+                {Number(product.price).toLocaleString()} <span className="text-sm font-black uppercase">FCFA</span>
               </p>
             </div>
 
-            {needsSize && (
-              <fieldset className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm">
-                <div className="flex justify-between items-center mb-8 w-full">
-                  <h2 className="font-black uppercase text-xs tracking-widest text-slate-900 flex items-center gap-2">
-                    <Ruler size={18} className="text-orange-600" /> 
-                    {product.sizes && product.sizes.length > 0 ? "Tailles Disponibles" : (isShoes ? 'Pointures' : 'Tailles')}
-                  </h2>
-                  {selectedSize && (
-                    <span className="text-[10px] font-black text-orange-700 uppercase bg-orange-100 px-3 py-1 rounded-full border border-orange-200">
-                      Sélection : {selectedSize}
-                    </span>
-                  )}
+            {/* SÉLECTEUR DE TAILLE STYLE LUXE */}
+            {(categoryStatus.isClothing || categoryStatus.isShoes) && (
+              <div className="mb-10">
+                <div className="flex justify-between items-center mb-4">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    <Ruler size={14} /> Choisir votre taille
+                  </label>
+                  <button className="text-[10px] font-black uppercase border-b border-slate-900 leading-none">Guide</button>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2">
                   {availableSizes.map((size) => (
                     <button
                       key={size}
                       onClick={() => setSelectedSize(size)}
-                      className={`h-14 min-w-[3.5rem] px-4 flex items-center justify-center rounded-2xl font-bold text-sm transition-all border-2
-                        ${selectedSize === size ? 'border-orange-600 bg-orange-600 text-white shadow-lg scale-105' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-orange-300'}`}
+                      className={`h-14 w-14 md:h-16 md:w-16 rounded-2xl font-black text-sm transition-all flex items-center justify-center border-2
+                        ${selectedSize === size ? 'border-orange-600 bg-orange-600 text-white' : 'border-slate-100 bg-white text-slate-900 hover:border-slate-300'}`}
                     >
                       {size}
                     </button>
                   ))}
                 </div>
-              </fieldset>
+              </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-center gap-4 p-6 bg-white border border-slate-200 rounded-[1.5rem]">
-                <div className="bg-orange-100 p-3 rounded-2xl text-orange-700"><Truck size={28} /></div>
-                <div>
-                  <h3 className="font-black text-xs uppercase tracking-wider">Livraison Express</h3>
-                  <p className="text-sm text-slate-600 font-medium">Abidjan en 24h chrono.</p>
-                </div>
+            {/* DESCRIPTION ACCORDÉON */}
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 mb-8">
+              <h3 className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Info size={14} className="text-orange-500" /> Storytelling
+              </h3>
+              <p className="text-slate-500 text-sm leading-relaxed font-medium">
+                {product.description || "Sélectionnée pour son caractère unique et sa qualité supérieure, cette pièce incarne l'esprit GOATSTORE."}
+              </p>
+            </div>
+
+            {/* ACTIONS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button 
+                onClick={handleAddToCart}
+                disabled={stockCount === 0 || ((categoryStatus.isShoes || categoryStatus.isClothing) && !selectedSize)}
+                className={`group relative overflow-hidden py-6 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all
+                  ${stockCount === 0 ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white hover:bg-orange-600 shadow-xl'}`}
+              >
+                <span className="relative z-10">
+                  {stockCount === 0 ? 'Sold Out' : (selectedSize || !categoryStatus.isShoes) ? 'Prendre maintenant' : 'Sélectionner Taille'}
+                </span>
+              </button>
+              
+              <button 
+                onClick={handleWhatsAppOrder}
+                className="py-6 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] bg-white border border-slate-200 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all"
+              >
+                <MessageCircle size={18} /> Conciergerie WhatsApp
+              </button>
+            </div>
+
+            {/* REASSURANCE */}
+            <div className="mt-12 grid grid-cols-2 gap-4">
+              <div className="flex flex-col items-center text-center p-4">
+                <Truck size={20} className="mb-2 text-slate-300" />
+                <p className="text-[8px] font-black uppercase tracking-tighter">Livraison VIP Abidjan</p>
               </div>
-              <div className="flex items-center gap-4 p-6 bg-white border border-slate-200 rounded-[1.5rem]">
-                <div className="bg-blue-100 p-3 rounded-2xl text-blue-700"><ShieldCheck size={28} /></div>
-                <div>
-                  <h3 className="font-black text-xs uppercase tracking-wider">Garantie GOAT</h3>
-                  <p className="text-sm text-slate-600 font-medium">Authenticité certifiée.</p>
-                </div>
+              <div className="flex flex-col items-center text-center p-4">
+                <ShieldCheck size={20} className="mb-2 text-slate-300" />
+                <p className="text-[8px] font-black uppercase tracking-tighter">Authenticité 100%</p>
               </div>
             </div>
           </div>
 
-          <aside className="lg:col-span-5 lg:sticky lg:top-32">
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 space-y-6">
-              <div className="text-center">
-                <span className="text-xs font-black text-orange-600 uppercase tracking-widest">Tarif Privilège</span>
-                <div className="text-6xl font-black text-slate-900 mt-2 tracking-tighter">
-                  {Number(product.price).toLocaleString()} <span className="text-lg font-bold">FCFA</span>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <button 
-                  onClick={handleAddToCart} // APPELLE NOTRE NOUVELLE FONCTION
-                  disabled={(needsSize && !selectedSize) || stockCount === 0}
-                  className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all transform active:scale-95
-                    ${((!needsSize || selectedSize) && stockCount > 0) ? 'bg-black text-white hover:bg-orange-600 shadow-2xl' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50'}`}
-                >
-                  {stockCount === 0 ? 'SOLD OUT' : (!needsSize || selectedSize) ? 'Ajouter au panier' : 'Choisir une taille'}
-                </button>
-                <button 
-                  onClick={handleWhatsAppOrder}
-                  className="w-full bg-[#128C7E] text-white py-6 rounded-2xl font-black uppercase text-xs tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-[#075E54] transition-all shadow-lg active:scale-95"
-                >
-                  <MessageCircle size={22} fill="currentColor" />
-                  Commander via WhatsApp
-                </button>
-              </div>
-            </div>
-          </aside>
         </div>
-      </section>
+      </div>
     </main>
   );
 };
